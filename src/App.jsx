@@ -739,7 +739,7 @@ function App() {
           </div>
           
           {isPersonal && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="personal-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div className="form-group" style={{ marginBottom: '12px' }} key={`${sectionId}-name`}>
                 <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>姓名 <span style={{ color: 'red' }}>*</span></label>
                 <input

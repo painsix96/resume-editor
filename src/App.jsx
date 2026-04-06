@@ -163,30 +163,11 @@ function App() {
     return savedCurrentResumeId || '1';
   });
   const [isCompressed, setIsCompressed] = useState(false);
-  const [isFooterVisible, setIsFooterVisible] = useState(false);
   const [editingSectionName, setEditingSectionName] = useState(null);
   const [showAddSectionMenu, setShowAddSectionMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [resumeToDelete, setResumeToDelete] = useState(null);
   const previewRef = useRef(null);
-
-  // 监听滚动事件，控制底部信息栏显示
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollHeight = document.documentElement.scrollHeight;
-      const scrollTop = document.documentElement.scrollTop;
-      const clientHeight = document.documentElement.clientHeight;
-      
-      if (scrollHeight - scrollTop - clientHeight < 100) {
-        setIsFooterVisible(true);
-      } else {
-        setIsFooterVisible(false);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // 当简历数据变化时，保存到 localStorage
   useEffect(() => {
@@ -1435,10 +1416,10 @@ function App() {
                 </option>
               ))}
             </select>
-            <button className="btn btn-sm btn-secondary" onClick={handleCreateResume}>
+            <button className="btn btn-secondary" onClick={handleCreateResume}>
               新建简历
             </button>
-            <button className="btn btn-sm btn-danger" onClick={() => {
+            <button className="btn btn-danger" onClick={() => {
               if (resumes.length <= 1) {
                 alert('至少需要保留一份简历');
                 return;
@@ -1448,7 +1429,7 @@ function App() {
             }}>
               删除简历
             </button>
-            <button className="btn btn-sm btn-secondary" onClick={() => {
+            <button className="btn btn-secondary" onClick={() => {
               const newName = prompt('请输入新的简历名称:', currentResume?.name);
               if (newName) handleRenameResume(currentResumeId, newName);
             }}>
@@ -1612,10 +1593,6 @@ function App() {
           </div>
         )}
 
-        {/* 底部 */}
-        <footer className={`footer ${isFooterVisible ? 'visible' : ''}`}>
-          <p>© 2026 简历编辑器 - 专业简历制作工具</p>
-        </footer>
       </div>
     </DndProvider>
   );

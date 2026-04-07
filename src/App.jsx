@@ -1403,7 +1403,7 @@ function App() {
       <div className="container">
         {/* 头部 */}
         <header className="header">
-          <h1>简历编辑器</h1>
+          <h1>一页简历</h1>
           <div className="resume-management">
             <select 
               value={currentResumeId} 

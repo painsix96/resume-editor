@@ -1,55 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { FiChevronDown, FiChevronUp, FiMove, FiEdit, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiChevronDown, FiPlus, FiTrash2, FiSun, FiMoon } from 'react-icons/fi';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import html2pdf from 'html2pdf.js';
 
-// 可拖动的模块组件
-const DraggableSection = ({ section, index, moveSection, children, isExpanded, resumeData }) => {
-  const ref = React.useRef(null);
-  
-  // 个人信息模块不可拖动
-  if (section === 'personal') {
-    return <div>{children}</div>;
-  }
-  
-  const [{ isDragging }, drag] = useDrag({
-    type: 'SECTION',
-    item: { index },
-    collect: (monitor) => ({
-      isDragging: monitor.isDragging(),
-    }),
-    canDrag: !isExpanded,
-  });
-  
-  const [{ isOver }, drop] = useDrop({
-    accept: 'SECTION',
-    drop: (item) => moveSection(item.index, index),
-    collect: (monitor) => ({
-      isOver: monitor.isOver(),
-    }),
-  });
-  
-  drag(drop(ref));
-  
-  return (
-    <div
-      ref={ref}
-      style={{
-        opacity: isDragging ? 0.5 : 1,
-        cursor: isExpanded ? 'default' : 'move',
-        transition: 'all 0.2s ease',
-        transform: isDragging ? 'scale(1.02)' : 'scale(1)',
-        boxShadow: isDragging ? '0 8px 24px rgba(0, 0, 0, 0.15)' : 'none',
-        marginBottom: '16px',
-      }}
-    >
-      {children}
-    </div>
-  );
-};
+// 导入组件
+import DraggableSection from './components/DraggableSection';
+import SectionContent from './components/SectionContent';
+import PreviewSection from './components/PreviewSection';
 
 // 生成唯一ID
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -119,7 +79,7 @@ const sectionTypes = {
 
 function App() {
   // 从 localStorage 加载数据，如果没有则使用初始数据
-  const loadFromLocalStorage = () => {
+  const loadFromLocalStorage = useCallback(() => {
     const savedResumes = localStorage.getItem('resumeEditorResumes');
     if (savedResumes) {
       try {
@@ -155,7 +115,7 @@ function App() {
         editingSectionId: null
       }
     ];
-  };
+  }, []);
 
   const [resumes, setResumes] = useState(loadFromLocalStorage());
   const [currentResumeId, setCurrentResumeId] = useState(() => {
@@ -167,11 +127,32 @@ function App() {
   const [showAddSectionMenu, setShowAddSectionMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [resumeToDelete, setResumeToDelete] = useState(null);
+  const [showSectionDeleteConfirm, setShowSectionDeleteConfirm] = useState(false);
+  const [sectionToDelete, setSectionToDelete] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const savedDarkMode = localStorage.getItem('resumeEditorDarkMode');
+    return savedDarkMode === 'true';
+  });
   const previewRef = useRef(null);
+  const editorRef = useRef(null);
+  const sectionRefs = useRef({});
+  const sectionToScrollRef = useRef(null);
+
+  // 初始化时应用深色模式
+  useEffect(() => {
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+    }
+  }, []);
 
   // 当简历数据变化时，保存到 localStorage
   useEffect(() => {
-    localStorage.setItem('resumeEditorResumes', JSON.stringify(resumes));
+    // 使用 setTimeout 防抖，避免频繁写入 localStorage
+    const timer = setTimeout(() => {
+      localStorage.setItem('resumeEditorResumes', JSON.stringify(resumes));
+    }, 300);
+    
+    return () => clearTimeout(timer);
   }, [resumes]);
 
   // 当当前选中的简历 ID 变化时，保存到 localStorage
@@ -179,33 +160,69 @@ function App() {
     localStorage.setItem('resumeEditorCurrentResumeId', currentResumeId);
   }, [currentResumeId]);
 
-  // 获取当前简历数据
-  const currentResume = resumes.find(resume => resume.id === currentResumeId);
-  const resumeData = currentResume?.data || initialResumeData;
-  const expandedSections = currentResume?.expandedSections || {};
-  const sectionsOrder = currentResume?.sectionsOrder || [];
-  const sectionNames = currentResume?.sectionNames || {};
-  const editingData = currentResume?.editingData;
-  const editingSectionId = currentResume?.editingSectionId;
+  // 当深色模式变化时，保存到 localStorage
+  useEffect(() => {
+    localStorage.setItem('resumeEditorDarkMode', isDarkMode.toString());
+    // 切换 body 上的类名
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, [isDarkMode]);
 
-  // 获取所有模块
-  const getAllSections = () => {
-    const sections = [];
-    sectionsOrder.forEach(id => {
-      if (id === 'personal') {
-        sections.push({ id: 'personal', type: 'personal', ...resumeData.personal });
-      } else {
-        const section = resumeData.sections.find(s => s.id === id);
-        if (section) {
-          sections.push(section);
-        }
+  // 切换深色模式
+  const toggleDarkMode = useCallback(() => {
+    setIsDarkMode(prev => !prev);
+  }, []);
+
+  // 获取当前简历数据
+  const currentResume = useMemo(() => {
+    return resumes.find(resume => resume.id === currentResumeId);
+  }, [resumes, currentResumeId]);
+
+  const resumeData = useMemo(() => {
+    return currentResume?.data || initialResumeData;
+  }, [currentResume]);
+
+  const expandedSections = useMemo(() => {
+    return currentResume?.expandedSections || {};
+  }, [currentResume]);
+
+  const sectionsOrder = useMemo(() => {
+    return currentResume?.sectionsOrder || [];
+  }, [currentResume]);
+
+  const sectionNames = useMemo(() => {
+    return currentResume?.sectionNames || {};
+  }, [currentResume]);
+
+  const editingData = useMemo(() => {
+    return currentResume?.editingData;
+  }, [currentResume]);
+
+  const editingSectionId = useMemo(() => {
+    return currentResume?.editingSectionId;
+  }, [currentResume]);
+
+  // 监听需要滚动的模块并执行滚动
+  useEffect(() => {
+    if (sectionToScrollRef.current) {
+      const sectionId = sectionToScrollRef.current;
+      const sectionRef = sectionRefs.current[sectionId];
+      if (sectionRef) {
+        sectionRef.scrollIntoView({ behavior: 'auto', block: 'start' });
       }
-    });
-    return sections;
-  };
+      sectionToScrollRef.current = null;
+    }
+  }, [expandedSections]);
+
+
+
+
 
   // 处理表单输入变化 - 个人信息或简单模块
-  const handleInputChange = (sectionId, field, value) => {
+  const handleInputChange = useCallback((sectionId, field, value) => {
     setResumes(prev => prev.map(resume => {
       if (resume.id === currentResumeId) {
         if (resume.editingSectionId === sectionId && resume.editingData) {
@@ -217,10 +234,10 @@ function App() {
       }
       return resume;
     }));
-  };
+  }, [currentResumeId]);
 
   // 处理子模块输入变化
-  const handleItemInputChange = (sectionId, itemId, field, value) => {
+  const handleItemInputChange = useCallback((sectionId, itemId, field, value) => {
     setResumes(prev => prev.map(resume => {
       if (resume.id === currentResumeId && resume.editingSectionId === sectionId && resume.editingData) {
         return {
@@ -238,10 +255,10 @@ function App() {
       }
       return resume;
     }));
-  };
+  }, [currentResumeId]);
 
   // 处理添加子模块
-  const handleAddItem = (sectionId, sectionType) => {
+  const handleAddItem = useCallback((sectionId, sectionType) => {
     const newItem = { id: generateId() };
     
     switch (sectionType) {
@@ -277,10 +294,10 @@ function App() {
       }
       return resume;
     }));
-  };
+  }, [currentResumeId]);
 
   // 处理删除子模块
-  const handleDeleteItem = (sectionId, itemId) => {
+  const handleDeleteItem = useCallback((sectionId, itemId) => {
     setResumes(prev => prev.map(resume => {
       if (resume.id === currentResumeId && resume.editingSectionId === sectionId && resume.editingData) {
         return {
@@ -293,36 +310,47 @@ function App() {
       }
       return resume;
     }));
-  };
+  }, [currentResumeId]);
 
   // 处理删除模块
-  const handleDeleteSection = (sectionId) => {
+  const handleDeleteSection = useCallback((sectionId) => {
     if (sectionId === 'personal') {
       alert('个人信息模块不可删除');
       return;
     }
     
-    setResumes(prev => prev.map(resume => {
-      if (resume.id === currentResumeId) {
-        const updatedSectionsOrder = resume.sectionsOrder.filter(id => id !== sectionId);
-        const updatedSections = resume.data.sections.filter(s => s.id !== sectionId);
-        const { [sectionId]: _, ...updatedExpandedSections } = resume.expandedSections;
-        const { [sectionId]: __, ...updatedSectionNames } = resume.sectionNames;
-        
-        return {
-          ...resume,
-          data: { ...resume.data, sections: updatedSections },
-          sectionsOrder: updatedSectionsOrder,
-          expandedSections: updatedExpandedSections,
-          sectionNames: updatedSectionNames
-        };
-      }
-      return resume;
-    }));
-  };
+    setSectionToDelete(sectionId);
+    setShowSectionDeleteConfirm(true);
+  }, []);
+  
+  // 确认删除模块
+  const confirmDeleteSection = useCallback(() => {
+    if (sectionToDelete) {
+      setResumes(prev => prev.map(resume => {
+        if (resume.id === currentResumeId) {
+          const updatedSectionsOrder = resume.sectionsOrder.filter(id => id !== sectionToDelete);
+          const updatedSections = resume.data.sections.filter(s => s.id !== sectionToDelete);
+          const { [sectionToDelete]: _, ...updatedExpandedSections } = resume.expandedSections;
+          const { [sectionToDelete]: __, ...updatedSectionNames } = resume.sectionNames;
+          
+          return {
+            ...resume,
+            data: { ...resume.data, sections: updatedSections },
+            sectionsOrder: updatedSectionsOrder,
+            expandedSections: updatedExpandedSections,
+            sectionNames: updatedSectionNames
+          };
+        }
+        return resume;
+      }));
+      
+      setShowSectionDeleteConfirm(false);
+      setSectionToDelete(null);
+    }
+  }, [sectionToDelete, currentResumeId]);
 
   // 处理修改模块名称
-  const handleRenameSection = (sectionId, newName) => {
+  const handleRenameSection = useCallback((sectionId, newName) => {
     if (newName.trim()) {
       setResumes(prev => prev.map(resume => {
         if (resume.id === currentResumeId) {
@@ -338,10 +366,51 @@ function App() {
       }));
     }
     setEditingSectionName(null);
-  };
+  }, [currentResumeId]);
 
-  // 切换模块展开/收起
-  const toggleSection = (sectionId) => {
+  const isTogglingRef = useRef(false);
+
+  // 从预览区点击展开模块 - 带点击防护
+  const handlePreviewSectionClick = useCallback((sectionId) => {
+    if (isTogglingRef.current) return;
+    
+    isTogglingRef.current = true;
+    
+    setResumes(prev => prev.map(resume => {
+      if (resume.id === currentResumeId) {
+        if (sectionId === 'personal') return resume;
+        
+        const section = resume.data.sections.find(s => s.id === sectionId);
+        const isAlreadyExpanded = resume.expandedSections[sectionId];
+        
+        if (!isAlreadyExpanded) {
+          sectionToScrollRef.current = sectionId;
+          return {
+            ...resume,
+            expandedSections: {
+              ...resume.expandedSections,
+              [sectionId]: true
+            },
+            editingSectionId: sectionId,
+            editingData: section ? { ...section } : null
+          };
+        } else {
+          sectionToScrollRef.current = sectionId;
+        }
+      }
+      return resume;
+    }));
+    
+    setTimeout(() => {
+      isTogglingRef.current = false;
+    }, 150);
+  }, [currentResumeId]);
+
+  // 切换模块展开/收起 - 带防抖和点击防护
+  const toggleSection = useCallback((sectionId) => {
+    if (isTogglingRef.current) return;
+    
+    isTogglingRef.current = true;
     setResumes(prev => prev.map(resume => {
       if (resume.id === currentResumeId) {
         const newExpanded = !resume.expandedSections[sectionId];
@@ -372,10 +441,14 @@ function App() {
       }
       return resume;
     }));
-  };
+    
+    setTimeout(() => {
+      isTogglingRef.current = false;
+    }, 150);
+  }, [currentResumeId]);
 
   // 处理拖动排序
-  const handleDragEnd = (result) => {
+  const handleDragEnd = useCallback((result) => {
     if (!result.destination) return;
     
     setResumes(prev => prev.map(resume => {
@@ -388,19 +461,19 @@ function App() {
       }
       return resume;
     }));
-  };
+  }, [currentResumeId]);
 
   // 移动模块
-  const moveSection = (fromIndex, toIndex) => {
+  const moveSection = useCallback((fromIndex, toIndex) => {
     const result = {
       source: { index: fromIndex },
       destination: { index: toIndex }
     };
     handleDragEnd(result);
-  };
+  }, [handleDragEnd]);
 
   // 开始编辑模块
-  const handleStartEdit = (sectionId) => {
+  const handleStartEdit = useCallback((sectionId) => {
     setResumes(prev => prev.map(resume => {
       if (resume.id === currentResumeId) {
         const section = resume.data.sections.find(s => s.id === sectionId);
@@ -414,10 +487,10 @@ function App() {
       }
       return resume;
     }));
-  };
+  }, [currentResumeId]);
 
   // 保存编辑
-  const handleSaveEdit = () => {
+  const handleSaveEdit = useCallback(() => {
     setResumes(prev => prev.map(resume => {
       if (resume.id === currentResumeId && resume.editingSectionId && resume.editingData) {
         const updatedData = { ...resume.data };
@@ -440,10 +513,10 @@ function App() {
       }
       return resume;
     }));
-  };
+  }, [currentResumeId]);
 
   // 取消编辑
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setResumes(prev => prev.map(resume => {
       if (resume.id === currentResumeId) {
         // 找到当前展开的模块
@@ -463,70 +536,90 @@ function App() {
       }
       return resume;
     }));
-  };
+  }, [currentResumeId]);
 
   // 处理创建新简历
-  const handleCreateResume = () => {
-    const newId = (resumes.length + 1).toString();
+  const handleCreateResume = useCallback(() => {
     const newData = createInitialResumeData();
-    setResumes(prev => [...prev, {
-      id: newId,
-      name: `简历${newId}`,
-      data: newData,
-      expandedSections: {
-        personal: false,
-        [newData.sections[0].id]: false,
-        [newData.sections[1].id]: false,
-        [newData.sections[2].id]: false,
-        [newData.sections[3].id]: false
-      },
-      sectionsOrder: [
-        'personal',
-        ...newData.sections.map(s => s.id)
-      ],
-      sectionNames: {
-        personal: '个人信息',
-        [newData.sections[0].id]: '个人总结',
-        [newData.sections[1].id]: '工作经验',
-        [newData.sections[2].id]: '教育背景',
-        [newData.sections[3].id]: '技能'
-      }
-    }]);
-    setCurrentResumeId(newId);
-  };
+    setResumes(prev => {
+      const newId = (prev.length + 1).toString();
+      const newResume = {
+        id: newId,
+        name: `简历${newId}`,
+        data: newData,
+        expandedSections: {
+          personal: false,
+          [newData.sections[0].id]: false,
+          [newData.sections[1].id]: false,
+          [newData.sections[2].id]: false,
+          [newData.sections[3].id]: false
+        },
+        sectionsOrder: [
+          'personal',
+          ...newData.sections.map(s => s.id)
+        ],
+        sectionNames: {
+          personal: '个人信息',
+          [newData.sections[0].id]: '个人总结',
+          [newData.sections[1].id]: '工作经验',
+          [newData.sections[2].id]: '教育背景',
+          [newData.sections[3].id]: '技能'
+        }
+      };
+      setCurrentResumeId(newId);
+      return [...prev, newResume];
+    });
+  }, []);
 
   // 处理删除简历
-  const handleDeleteResume = (resumeId) => {
-    const newResumes = resumes.filter(resume => resume.id !== resumeId);
-    setResumes(newResumes);
-    
-    // 如果删除的是当前选中的简历，切换到第一个简历
-    if (currentResumeId === resumeId && newResumes.length > 0) {
-      setCurrentResumeId(newResumes[0].id);
-    }
+  const handleDeleteResume = useCallback((resumeId) => {
+    setResumes(prevResumes => {
+      const newResumes = prevResumes.filter(resume => resume.id !== resumeId);
+      
+      // 如果删除的是当前选中的简历，切换到第一个简历
+      if (currentResumeId === resumeId && newResumes.length > 0) {
+        setCurrentResumeId(newResumes[0].id);
+      }
+      
+      return newResumes;
+    });
     
     // 关闭确认弹窗
     setShowDeleteConfirm(false);
     setResumeToDelete(null);
-  };
+  }, [currentResumeId]);
 
   // 处理重命名简历
-  const handleRenameResume = (resumeId, newName) => {
+  const handleRenameResume = useCallback((resumeId, newName) => {
     setResumes(prev => prev.map(resume => {
       if (resume.id === resumeId) {
         return { ...resume, name: newName };
       }
       return resume;
     }));
-  };
+  }, []);
 
   // 处理智能压缩
-  const handleCompress = () => {
-    setIsCompressed(prev => !prev);
-  };
+  const handleCompress = useCallback(() => {
+    // 使用requestAnimationFrame代替setTimeout，更高效的渲染时机
+    requestAnimationFrame(() => {
+      if (previewRef.current) {
+        const resumeHeight = previewRef.current.scrollHeight;
+        const a4PageHeight = 1123; // A4 纸高度（像素）
+        
+        if (resumeHeight > a4PageHeight) {
+          // 内容超出一页，执行压缩
+          setIsCompressed(true);
+        } else {
+          // 内容未超出一页，取消压缩
+          setIsCompressed(false);
+        }
+      }
+    });
+  }, []);
 
   // 处理PDF导出
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     if (previewRef.current) {
       const opt = {
         margin: 5,
@@ -538,10 +631,10 @@ function App() {
 
       html2pdf().set(opt).from(previewRef.current).save();
     }
-  };
+  }, [resumeData.personal.name]);
 
   // 处理新增模块
-  const handleAddSection = (type) => {
+  const handleAddSection = useCallback((type) => {
     const newId = generateId();
     const newSection = {
       id: newId,
@@ -594,809 +687,23 @@ function App() {
     }));
     
     setShowAddSectionMenu(false);
-  };
+  }, [currentResumeId]);
 
-  // 渲染模块内容
-  const renderSectionContent = (section, isExpanded) => {
-    const sectionId = section.id;
-    const isPersonal = section.type === 'personal';
-    const isEditing = editingSectionId === sectionId;
-    // 当模块展开时，始终使用编辑数据
-    const currentData = isExpanded && editingData && editingSectionId === sectionId ? editingData : section;
-
-    if (isExpanded) {
-      return (
-        <div 
-          style={{ 
-            padding: '20px', 
-            backgroundColor: '#1e1e1e', 
-            borderRadius: '12px',
-            color: 'white',
-            fontSize: '1rem',
-            lineHeight: '1.6'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid #3a3a3a' }}>
-            {editingSectionName === sectionId ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="text"
-                  value={sectionNames[sectionId] || ''}
-                  onChange={(e) => setResumes(prev => prev.map(resume => {
-                    if (resume.id === currentResumeId) {
-                      return {
-                        ...resume,
-                        sectionNames: {
-                          ...resume.sectionNames,
-                          [sectionId]: e.target.value
-                        }
-                      };
-                    }
-                    return resume;
-                  }))}
-                  onKeyDown={(e) => e.key === 'Enter' && handleRenameSection(sectionId, sectionNames[sectionId])}
-                  style={{ 
-                    backgroundColor: '#2a2a2a', 
-                    border: '1px solid #3a3a3a', 
-                    color: '#3B82F6', 
-                    fontSize: '1.3rem', 
-                    fontWeight: 'bold',
-                    padding: '6px 10px',
-                    borderRadius: '4px'
-                  }}
-                  autoFocus
-                />
-                <button
-                  onClick={() => handleRenameSection(sectionId, sectionNames[sectionId])}
-                  style={{
-                    backgroundColor: '#3B82F6',
-                    color: 'white',
-                    border: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  确定
-                </button>
-                <button
-                  onClick={() => setEditingSectionName(null)}
-                  style={{
-                    backgroundColor: 'transparent',
-                    color: '#e0e0e0',
-                    border: 'none',
-                    padding: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  取消
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <h3 style={{ margin: 0, color: '#3B82F6', fontSize: '1.3rem', fontWeight: 'bold' }}>
-                  {sectionNames[sectionId] || sectionTypes[section.type]?.name || ''}
-                </h3>
-                {!isPersonal && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingSectionName(sectionId);
-                    }}
-                    style={{
-                      backgroundColor: 'transparent',
-                      color: '#e0e0e0',
-                      border: 'none',
-                      padding: '4px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    <FiEdit size={16} />
-                  </button>
-                )}
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div 
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#e0e0e0',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  borderRadius: '4px'
-                }}
-                onClick={() => toggleSection(sectionId)}
-              >
-                <FiChevronUp size={20} />
-              </div>
-            </div>
-          </div>
-          
-          {isPersonal && (
-            <div className="personal-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div className="form-group" style={{ marginBottom: '12px' }} key={`${sectionId}-name`}>
-                <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>姓名 <span style={{ color: 'red' }}>*</span></label>
-                <input
-                  type="text"
-                  value={currentData.name}
-                  onChange={(e) => handleInputChange(sectionId, 'name', e.target.value)}
-                  required
-                  style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: '12px' }} key={`${sectionId}-title`}>
-                <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>职位 <span style={{ color: 'red' }}>*</span></label>
-                <input
-                  type="text"
-                  value={currentData.title}
-                  onChange={(e) => handleInputChange(sectionId, 'title', e.target.value)}
-                  required
-                  style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: '12px' }} key={`${sectionId}-email`}>
-                <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>邮箱 <span style={{ color: 'red' }}>*</span></label>
-                <input
-                  type="email"
-                  value={currentData.email}
-                  onChange={(e) => handleInputChange(sectionId, 'email', e.target.value)}
-                  required
-                  style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: '12px' }} key={`${sectionId}-phone`}>
-                <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>电话 <span style={{ color: 'red' }}>*</span></label>
-                <input
-                  type="tel"
-                  value={currentData.phone}
-                  onChange={(e) => handleInputChange(sectionId, 'phone', e.target.value)}
-                  required
-                  style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                />
-              </div>
-              <div className="form-group" style={{ gridColumn: '1 / -1', marginBottom: '0' }} key={`${sectionId}-address`}>
-                <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>地址</label>
-                <input
-                  type="text"
-                  value={currentData.address}
-                  onChange={(e) => handleInputChange(sectionId, 'address', e.target.value)}
-                  style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                />
-              </div>
-            </div>
-          )}
-          
-          {currentData.type === 'summary' && (
-            <div className="form-group">
-              <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>个人总结</label>
-              <ReactQuill
-                value={currentData.content || ''}
-                onChange={(content) => handleInputChange(sectionId, 'content', content)}
-                placeholder="请输入个人总结（非必填）"
-                modules={{
-                  toolbar: [
-                    [{ 'header': [1, 2, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    ['link'],
-                    ['clean']
-                  ]
-                }}
-                style={{ borderRadius: '6px' }}
-              />
-            </div>
-          )}
-          
-          {(currentData.type === 'experience' || currentData.type === 'education' || currentData.type === 'project') && currentData.items && (
-            <>
-              {currentData.items.map((item, idx) => (
-                <div key={item.id} style={{ marginBottom: idx < currentData.items.length - 1 ? '24px' : '0', paddingBottom: idx < currentData.items.length - 1 ? '20px' : '0', borderBottom: idx < currentData.items.length - 1 ? '1px solid #3a3a3a' : 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <h4 style={{ margin: 0, color: '#e0e0e0', fontSize: '1.1rem', fontWeight: '600' }}>
-                      {currentData.type === 'experience' && `工作经历 ${idx + 1}`}
-                      {currentData.type === 'education' && `教育经历 ${idx + 1}`}
-                      {currentData.type === 'project' && `项目经历 ${idx + 1}`}
-                    </h4>
-                    <button 
-                      onClick={() => handleDeleteItem(sectionId, item.id)}
-                      style={{ 
-                        backgroundColor: 'transparent', 
-                        color: '#dc2626', 
-                        border: 'none', 
-                        padding: '4px', 
-                        borderRadius: '4px', 
-                        cursor: 'pointer', 
-                        fontSize: '0.875rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <FiTrash2 size={18} />
-                    </button>
-                  </div>
-                  
-                  {currentData.type === 'experience' && (
-                    <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                        <div key={`${item.id}-company`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>公司名称</label>
-                          <input
-                            type="text"
-                            placeholder="公司名称"
-                            value={item.company}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'company', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                        <div key={`${item.id}-position`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>职位</label>
-                          <input
-                            type="text"
-                            placeholder="职位"
-                            value={item.position}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'position', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }} key={`${item.id}-period`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>时间段</label>
-                          <input
-                            type="text"
-                            placeholder="时间段"
-                            value={item.period}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'period', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                      </div>
-                      <div key={`${item.id}-description`}>
-                        <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>工作描述</label>
-                        <ReactQuill
-                          value={item.description || ''}
-                          onChange={(content) => handleItemInputChange(sectionId, item.id, 'description', content)}
-                          placeholder="工作描述"
-                          modules={{
-                            toolbar: [
-                              [{ 'header': [1, 2, false] }],
-                              ['bold', 'italic', 'underline', 'strike'],
-                              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                              ['link'],
-                              ['clean']
-                            ]
-                          }}
-                          style={{ borderRadius: '6px' }}
-                        />
-                      </div>
-                    </>
-                  )}
-                  
-                  {currentData.type === 'education' && (
-                    <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                        <div key={`${item.id}-school`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>学校名称</label>
-                          <input
-                            type="text"
-                            placeholder="学校名称"
-                            value={item.school}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'school', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                        <div key={`${item.id}-degree`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>学位/专业</label>
-                          <input
-                            type="text"
-                            placeholder="学位"
-                            value={item.degree}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'degree', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }} key={`${item.id}-period`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>时间段</label>
-                          <input
-                            type="text"
-                            placeholder="时间段"
-                            value={item.period}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'period', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                      </div>
-                      <div key={`${item.id}-description`}>
-                        <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>描述</label>
-                        <ReactQuill
-                          value={item.description || ''}
-                          onChange={(content) => handleItemInputChange(sectionId, item.id, 'description', content)}
-                          placeholder="描述"
-                          modules={{
-                            toolbar: [
-                              [{ 'header': [1, 2, false] }],
-                              ['bold', 'italic', 'underline', 'strike'],
-                              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                              ['link'],
-                              ['clean']
-                            ]
-                          }}
-                          style={{ borderRadius: '6px' }}
-                        />
-                      </div>
-                    </>
-                  )}
-                  
-                  {currentData.type === 'project' && (
-                    <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                        <div key={`${item.id}-projectName`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>项目名称</label>
-                          <input
-                            type="text"
-                            placeholder="项目名称"
-                            value={item.projectName}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'projectName', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                        <div key={`${item.id}-role`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>角色</label>
-                          <input
-                            type="text"
-                            placeholder="角色"
-                            value={item.role}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'role', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }} key={`${item.id}-period`}>
-                          <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>时间段</label>
-                          <input
-                            type="text"
-                            placeholder="时间段"
-                            value={item.period}
-                            onChange={(e) => handleItemInputChange(sectionId, item.id, 'period', e.target.value)}
-                            style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                          />
-                        </div>
-                      </div>
-                      <div key={`${item.id}-description`}>
-                        <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>项目描述</label>
-                        <ReactQuill
-                          value={item.description || ''}
-                          onChange={(content) => handleItemInputChange(sectionId, item.id, 'description', content)}
-                          placeholder="项目描述"
-                          modules={{
-                            toolbar: [
-                              [{ 'header': [1, 2, false] }],
-                              ['bold', 'italic', 'underline', 'strike'],
-                              [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                              ['link'],
-                              ['clean']
-                            ]
-                          }}
-                          style={{ borderRadius: '6px' }}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-              
-              {/* 添加子模块按钮 */}
-              <div style={{ textAlign: 'left', marginTop: '20px' }}>
-                <button 
-                  className="btn btn-sm btn-primary"
-                  onClick={() => handleAddItem(sectionId, currentData.type)}
-                  style={{ 
-                    backgroundColor: '#3B82F6', 
-                    color: 'white', 
-                    border: 'none', 
-                    padding: '10px 20px', 
-                    borderRadius: '6px', 
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center'
-                  }}
-                >
-                  <FiPlus size={16} style={{ marginRight: '6px' }} />
-                  {currentData.type === 'experience' && '新增工作经历'}
-                  {currentData.type === 'education' && '新增教育经历'}
-                  {currentData.type === 'project' && '新增项目经历'}
-                </button>
-              </div>
-            </>
-          )}
-          
-          {currentData.type === 'skills' && (
-            <div className="form-group" key={`${sectionId}-skills`}>
-              <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>技能</label>
-              <ReactQuill
-                value={currentData.content || ''}
-                onChange={(content) => handleInputChange(sectionId, 'content', content)}
-                placeholder="请输入技能，用逗号分隔"
-                modules={{
-                  toolbar: [
-                    [{ 'header': [1, 2, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    ['link'],
-                    ['clean']
-                  ]
-                }}
-                style={{ borderRadius: '6px' }}
-              />
-            </div>
-          )}
-          
-          {currentData.type === 'custom' && (
-            <>
-              <div className="form-group" style={{ marginBottom: '16px' }} key={`${sectionId}-custom-title`}>
-                <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>标题</label>
-                <input
-                  type="text"
-                  placeholder="标题"
-                  value={currentData.title}
-                  onChange={(e) => handleInputChange(sectionId, 'title', e.target.value)}
-                  style={{ backgroundColor: '#2a2a2a', border: '1px solid #3a3a3a', color: 'white', width: '100%', padding: '10px', borderRadius: '6px' }}
-                />
-              </div>
-              <div className="form-group" key={`${sectionId}-custom-content`}>
-                <label style={{ color: '#e0e0e0', display: 'block', marginBottom: '6px' }}>内容</label>
-                <ReactQuill
-                  value={currentData.content || ''}
-                  onChange={(content) => handleInputChange(sectionId, 'content', content)}
-                  placeholder="内容"
-                  modules={{
-                    toolbar: [
-                      [{ 'header': [1, 2, false] }],
-                      ['bold', 'italic', 'underline', 'strike'],
-                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                      ['link'],
-                      ['clean']
-                    ]
-                  }}
-                  style={{ borderRadius: '6px' }}
-                />
-              </div>
-            </>
-          )}
-          
-          {/* 保存和取消按钮 */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #3a3a3a' }}>
-            <button
-              onClick={handleCancelEdit}
-              style={{
-                backgroundColor: '#3a3a3a',
-                color: 'white',
-                border: 'none',
-                padding: '10px 24px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '0.9375rem',
-                fontWeight: '500'
-              }}
-            >
-              取消
-            </button>
-            <button
-              onClick={handleSaveEdit}
-              style={{
-                backgroundColor: '#3B82F6',
-                color: 'white',
-                border: 'none',
-                padding: '10px 24px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '0.9375rem',
-                fontWeight: '500'
-              }}
-            >
-              保存
-            </button>
-          </div>
-        </div>
-      );
-    } else {
-      return (
-        <div 
-          style={{ 
-            padding: '20px', 
-            backgroundColor: '#1e1e1e', 
-            borderRadius: '12px',
-            color: 'white',
-            fontSize: '1rem',
-            lineHeight: '1.6',
-            cursor: 'pointer'
-          }}
-          onClick={() => toggleSection(sectionId)}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #3a3a3a' }}>
-            {editingSectionName === sectionId ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="text"
-                  value={sectionNames[sectionId] || ''}
-                  onChange={(e) => setResumes(prev => prev.map(resume => {
-                    if (resume.id === currentResumeId) {
-                      return {
-                        ...resume,
-                        sectionNames: {
-                          ...resume.sectionNames,
-                          [sectionId]: e.target.value
-                        }
-                      };
-                    }
-                    return resume;
-                  }))}
-                  onKeyDown={(e) => e.key === 'Enter' && handleRenameSection(sectionId, sectionNames[sectionId])}
-                  style={{ 
-                    backgroundColor: '#2a2a2a', 
-                    border: '1px solid #3a3a3a', 
-                    color: '#3B82F6', 
-                    fontSize: '1.3rem', 
-                    fontWeight: 'bold',
-                    padding: '6px 10px',
-                    borderRadius: '4px'
-                  }}
-                  autoFocus
-                />
-                <button
-                  onClick={() => handleRenameSection(sectionId, sectionNames[sectionId])}
-                  style={{
-                    backgroundColor: '#3B82F6',
-                    color: 'white',
-                    border: 'none',
-                    padding: '6px 12px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  确定
-                </button>
-                <button
-                  onClick={() => setEditingSectionName(null)}
-                  style={{
-                    backgroundColor: 'transparent',
-                    color: '#e0e0e0',
-                    border: 'none',
-                    padding: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  取消
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <h3 style={{ margin: 0, color: '#3B82F6', fontSize: '1.3rem', fontWeight: 'bold' }}>
-                  {sectionNames[sectionId] || sectionTypes[section.type]?.name || ''}
-                </h3>
-                {!isPersonal && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingSectionName(sectionId);
-                    }}
-                    style={{
-                      backgroundColor: 'transparent',
-                      color: '#e0e0e0',
-                      border: 'none',
-                      padding: '4px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    <FiEdit size={16} />
-                  </button>
-                )}
-              </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {!isPersonal && (
-                <button 
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#dc2626',
-                    cursor: 'pointer',
-                    padding: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteSection(sectionId);
-                  }}
-                >
-                  <FiTrash2 size={18} />
-                </button>
-              )}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#e0e0e0'
-              }}>
-                <FiChevronDown size={20} />
-              </div>
-            </div>
-          </div>
-          
-          {isPersonal && (
-            <>
-              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '12px', color: 'white' }}>
-                {section.name}
-              </div>
-              <div style={{ fontSize: '1.1rem', color: '#e0e0e0' }}>
-                {section.phone} | {section.email}
-              </div>
-            </>
-          )}
-          
-          {section.type === 'summary' && (
-            <div style={{ color: '#e0e0e0' }}>
-              {section.content ? <div dangerouslySetInnerHTML={{ __html: section.content }} /> : '无个人总结'}
-            </div>
-          )}
-          
-          {section.type === 'experience' && section.items && section.items.length > 0 && (
-            section.items.map((item, idx) => (
-              <div key={item.id} style={{ marginBottom: idx < section.items.length - 1 ? '16px' : '0' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '8px', color: 'white' }}>
-                  {item.company || '未填写公司'}
-                </div>
-                <div style={{ fontSize: '1rem', color: '#e0e0e0' }}>
-                  {item.position || '未填写职位'} | {item.period || '未填写时间'}
-                </div>
-              </div>
-            ))
-          )}
-          
-          {section.type === 'education' && section.items && section.items.length > 0 && (
-            section.items.map((item, idx) => (
-              <div key={item.id} style={{ marginBottom: idx < section.items.length - 1 ? '16px' : '0' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '8px', color: 'white' }}>
-                  {item.school || '未填写学校'}
-                </div>
-                <div style={{ fontSize: '1rem', color: '#e0e0e0' }}>
-                  {item.degree || '未填写学位'} | {item.period || '未填写时间'}
-                </div>
-              </div>
-            ))
-          )}
-          
-          {section.type === 'project' && section.items && section.items.length > 0 && (
-            section.items.map((item, idx) => (
-              <div key={item.id} style={{ marginBottom: idx < section.items.length - 1 ? '16px' : '0' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '8px', color: 'white' }}>
-                  {item.projectName || '未填写项目名称'}
-                </div>
-                <div style={{ fontSize: '1rem', color: '#e0e0e0' }}>
-                  {item.role || '未填写角色'} | {item.period || '未填写时间'}
-                </div>
-              </div>
-            ))
-          )}
-          
-          {section.type === 'skills' && (
-            <div style={{ color: '#e0e0e0' }}>
-              {section.content || '无技能信息'}
-            </div>
-          )}
-          
-          {section.type === 'custom' && (
-            <>
-              {section.title && (
-                <div style={{ fontSize: '1.3rem', fontWeight: 'bold', marginBottom: '8px', color: 'white' }}>
-                  {section.title}
-                </div>
-              )}
-              <div style={{ color: '#e0e0e0' }}>
-                {section.content ? (
-                  section.content.length > 100 ? (
-                    <div dangerouslySetInnerHTML={{ __html: section.content.substring(0, 100) + '...' }} />
-                  ) : (
-                    <div dangerouslySetInnerHTML={{ __html: section.content }} />
-                  )
-                ) : '无内容'}
-              </div>
-            </>
-          )}
-        </div>
-      );
-    }
-  };
-
-  // 渲染预览模块
-  const renderPreviewSection = (section) => {
-    if (section.type === 'personal') return null;
-
-    let content = null;
-    
-    switch (section.type) {
-      case 'summary':
-        if (!section.content) return null;
-        content = <div dangerouslySetInnerHTML={{ __html: section.content }} />;
-        break;
-      case 'experience':
-        if (!section.items || section.items.length === 0) return null;
-        content = section.items.map((item, index) => (
-          <div key={item.id} style={{ marginBottom: index < section.items.length - 1 ? '16px' : '0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {item.company && item.position && <span><strong>{item.company}</strong> | {item.position}</span>}
-              {item.period && <span>{item.period}</span>}
-            </div>
-            {item.description && item.description.trim() !== '<p><br></p>' && <div dangerouslySetInnerHTML={{ __html: item.description }} />}
-          </div>
-        ));
-        break;
-      case 'education':
-        if (!section.items || section.items.length === 0) return null;
-        content = section.items.map((item, index) => (
-          <div key={item.id} style={{ marginBottom: index < section.items.length - 1 ? '8px' : '0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>
-                {item.school && <strong>{item.school}</strong>}
-                {item.school && item.degree && ' | '}
-                {item.degree}
-              </span>
-              {item.period && <span>{item.period}</span>}
-            </div>
-            {item.description && item.description.trim() !== '<p><br></p>' && <div dangerouslySetInnerHTML={{ __html: item.description }} />}
-          </div>
-        ));
-        break;
-      case 'skills':
-        if (!section.content) return null;
-        content = <div dangerouslySetInnerHTML={{ __html: section.content }} />;
-        break;
-      case 'project':
-        if (!section.items || section.items.length === 0) return null;
-        content = section.items.map((item, index) => (
-          <div key={item.id} style={{ marginBottom: index < section.items.length - 1 ? '16px' : '0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {item.projectName && item.role && <span><strong>{item.projectName}</strong> | {item.role}</span>}
-              {item.period && <span>{item.period}</span>}
-            </div>
-            {item.description && item.description.trim() !== '<p><br></p>' && <div dangerouslySetInnerHTML={{ __html: item.description }} />}
-          </div>
-        ));
-        break;
-      case 'custom':
-        if (!section.title && !section.content) return null;
-        content = (
-          <>
-            {section.title && <p><strong>{section.title}</strong></p>}
-            {section.content && <div dangerouslySetInnerHTML={{ __html: section.content }} />}
-          </>
-        );
-        break;
-    }
-
-    if (!content) return null;
-
-    return (
-      <div key={section.id} className="resume-section">
-        <h2>{sectionNames[section.id] || sectionTypes[section.type]?.name}</h2>
-        {content}
-      </div>
-    );
-  };
-
-  const allSections = getAllSections();
+  // 避免在渲染时重复计算
+  const allSections = useMemo(() => {
+    const sections = [];
+    sectionsOrder.forEach(id => {
+      if (id === 'personal') {
+        sections.push({ id: 'personal', type: 'personal', ...resumeData.personal });
+      } else {
+        const section = resumeData.sections.find(s => s.id === id);
+        if (section) {
+          sections.push(section);
+        }
+      }
+    });
+    return sections;
+  }, [sectionsOrder, resumeData]);
 
   return (
     <DndProvider backend={HTML5Backend}>
@@ -1448,18 +755,19 @@ function App() {
               
               {showAddSectionMenu && (
                 <div 
+                  className="add-section-menu"
                   style={{
                     position: 'absolute',
                     top: '100%',
                     right: 0,
                     marginTop: '8px',
-                    backgroundColor: '#1e1e1e',
-                    border: '1px solid #3a3a3a',
-                    borderRadius: '8px',
+                    backgroundColor: 'var(--module-bg)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--border-radius)',
                     padding: '8px 0',
                     minWidth: '160px',
                     zIndex: 1000,
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
+                    boxShadow: 'var(--shadow-hover)'
                   }}
                 >
                   {Object.entries(sectionTypes).map(([type, config]) => (
@@ -1473,11 +781,13 @@ function App() {
                         padding: '10px 16px',
                         backgroundColor: 'transparent',
                         border: 'none',
-                        color: 'white',
+                        color: 'var(--text-color)',
                         cursor: 'pointer',
-                        fontSize: '0.875rem'
+                        fontSize: '0.875rem',
+                        transition: 'var(--transition)',
+                        fontFamily: 'var(--font-sans)'
                       }}
-                      onMouseEnter={(e) => e.target.style.backgroundColor = '#2a2a2a'}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--secondary-color)'}
                       onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                     >
                       <span style={{ marginRight: '8px' }}>{config.icon}</span>
@@ -1494,17 +804,32 @@ function App() {
             <button className="btn btn-primary" onClick={handleExport}>
               导出PDF
             </button>
+            <button 
+              className="btn btn-secondary" 
+              onClick={toggleDarkMode}
+              title={isDarkMode ? '切换到浅色模式' : '切换到深色模式'}
+            >
+              {isDarkMode ? <FiSun size={18} /> : <FiMoon size={18} />}
+            </button>
           </div>
         </header>
 
         {/* 主内容区 */}
         <main className="main">
           {/* 左侧编辑区 */}
-          <section className="editor">
+          <section className="editor" ref={editorRef}>
             <h2>编辑简历</h2>
 
             {allSections.map((section, index) => (
-              <div key={section.id} style={{ marginBottom: '16px' }}>
+              <div 
+                key={section.id} 
+                style={{ marginBottom: '16px' }}
+                ref={(el) => {
+                  if (el) {
+                    sectionRefs.current[section.id] = el;
+                  }
+                }}
+              >
                 <DraggableSection 
                   section={section.id} 
                   index={index} 
@@ -1512,7 +837,27 @@ function App() {
                   isExpanded={expandedSections[section.id]}
                   resumeData={resumeData}
                 >
-                  {renderSectionContent(section, expandedSections[section.id])}
+                  <SectionContent 
+                    section={section}
+                    isExpanded={expandedSections[section.id]}
+                    editingSectionId={editingSectionId}
+                    editingData={editingData}
+                    sectionNames={sectionNames}
+                    sectionTypes={sectionTypes}
+                    currentResumeId={currentResumeId}
+                    editingSectionName={editingSectionName}
+                    toggleSection={toggleSection}
+                    handleInputChange={handleInputChange}
+                    handleItemInputChange={handleItemInputChange}
+                    handleAddItem={handleAddItem}
+                    handleDeleteItem={handleDeleteItem}
+                    handleRenameSection={handleRenameSection}
+                    handleCancelEdit={handleCancelEdit}
+                    handleSaveEdit={handleSaveEdit}
+                    handleDeleteSection={handleDeleteSection}
+                    setResumes={setResumes}
+                    setEditingSectionName={setEditingSectionName}
+                  />
                 </DraggableSection>
               </div>
             ))}
@@ -1529,7 +874,15 @@ function App() {
                 {resumeData.personal.address && <p>{resumeData.personal.address}</p>}
               </div>
 
-              {allSections.map(section => renderPreviewSection(section))}
+              {allSections.map(section => (
+                <PreviewSection 
+                  key={section.id}
+                  section={section} 
+                  sectionNames={sectionNames} 
+                  sectionTypes={sectionTypes} 
+                  onClick={handlePreviewSectionClick}
+                />
+              ))}
             </div>
           </aside>
         </main>
@@ -1548,16 +901,17 @@ function App() {
             alignItems: 'center',
             zIndex: 1000
           }}>
-            <div style={{
-              backgroundColor: '#1e1e1e',
+            <div className="delete-confirm-modal" style={{
+              backgroundColor: 'var(--modal-bg)',
               padding: '24px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+              borderRadius: 'var(--border-radius)',
+              boxShadow: 'var(--shadow-hover)',
               maxWidth: '400px',
-              width: '100%'
+              width: '100%',
+              border: '1px solid var(--border-color)'
             }}>
-              <h3 style={{ color: 'white', marginBottom: '16px' }}>确认删除</h3>
-              <p style={{ color: '#e0e0e0', marginBottom: '24px' }}>确定要删除当前简历吗？此操作不可恢复。</p>
+              <h3 style={{ color: 'var(--text-color)', marginBottom: '16px', fontFamily: 'var(--font-sans)', fontWeight: '600' }}>确认删除</h3>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontFamily: 'var(--font-sans)' }}>确定要删除当前简历吗？此操作不可恢复。</p>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button
                   onClick={() => {
@@ -1565,12 +919,23 @@ function App() {
                     setResumeToDelete(null);
                   }}
                   style={{
-                    backgroundColor: '#3a3a3a',
-                    color: 'white',
-                    border: 'none',
+                    backgroundColor: 'var(--input-bg)',
+                    color: 'var(--text-color)',
+                    border: '1px solid var(--border-color)',
                     padding: '8px 16px',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
+                    borderRadius: 'var(--border-radius)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'var(--transition)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = isDarkMode ? '#35354E' : '#E8EDF3';
+                    e.target.style.borderColor = 'var(--primary-color)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'var(--input-bg)';
+                    e.target.style.borderColor = 'var(--border-color)';
                   }}
                 >
                   取消
@@ -1578,13 +943,94 @@ function App() {
                 <button
                   onClick={() => resumeToDelete && handleDeleteResume(resumeToDelete)}
                   style={{
-                    backgroundColor: '#dc2626',
+                    backgroundColor: 'var(--error-color)',
                     color: 'white',
                     border: 'none',
                     padding: '8px 16px',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
+                    borderRadius: 'var(--border-radius)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'var(--transition)'
                   }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#DC2626'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--error-color)'}
+                >
+                  确认删除
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* 模块删除确认弹窗 */}
+        {showSectionDeleteConfirm && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
+          }}>
+            <div className="delete-confirm-modal" style={{
+              backgroundColor: 'var(--modal-bg)',
+              padding: '24px',
+              borderRadius: 'var(--border-radius)',
+              boxShadow: 'var(--shadow-hover)',
+              maxWidth: '400px',
+              width: '100%',
+              border: '1px solid var(--border-color)'
+            }}>
+              <h3 style={{ color: 'var(--text-color)', marginBottom: '16px', fontFamily: 'var(--font-sans)', fontWeight: '600' }}>确认删除</h3>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontFamily: 'var(--font-sans)' }}>确定要删除此模块吗？此操作不可恢复。</p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button
+                  onClick={() => {
+                    setShowSectionDeleteConfirm(false);
+                    setSectionToDelete(null);
+                  }}
+                  style={{
+                    backgroundColor: 'var(--input-bg)',
+                    color: 'var(--text-color)',
+                    border: '1px solid var(--border-color)',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--border-radius)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'var(--transition)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = isDarkMode ? '#35354E' : '#E8EDF3';
+                    e.target.style.borderColor = 'var(--primary-color)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'var(--input-bg)';
+                    e.target.style.borderColor = 'var(--border-color)';
+                  }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmDeleteSection}
+                  style={{
+                    backgroundColor: 'var(--error-color)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--border-radius)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'var(--transition)'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#DC2626'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--error-color)'}
                 >
                   确认删除
                 </button>

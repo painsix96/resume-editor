@@ -73,12 +73,6 @@ const PreviewSection = ({ section, sectionNames, sectionTypes, onClick }) => {
       className="resume-section"
       onClick={() => onClick(section.id)}
       style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = 'var(--secondary-color)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = 'transparent';
-      }}
     >
       <h2>{sectionNames[section.id] || sectionTypes[section.type]?.name}</h2>
       {content}

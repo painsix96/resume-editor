@@ -83,7 +83,12 @@ function App() {
     const savedResumes = localStorage.getItem('resumeEditorResumes');
     if (savedResumes) {
       try {
-        return JSON.parse(savedResumes);
+        const parsedResumes = JSON.parse(savedResumes);
+        return parsedResumes.map(resume => ({
+          ...resume,
+          isCompressed: resume.isCompressed !== undefined ? resume.isCompressed : false,
+          compressionLevel: resume.compressionLevel !== undefined ? resume.compressionLevel : 0
+        }));
       } catch (error) {
         console.error('Failed to parse saved resumes:', error);
       }
@@ -112,7 +117,9 @@ function App() {
           [initialResumeData.sections[3].id]: '技能'
         },
         editingData: null,
-        editingSectionId: null
+        editingSectionId: null,
+        isCompressed: false,
+        compressionLevel: 0
       }
     ];
   }, []);
@@ -122,7 +129,6 @@ function App() {
     const savedCurrentResumeId = localStorage.getItem('resumeEditorCurrentResumeId');
     return savedCurrentResumeId || '1';
   });
-  const [isCompressed, setIsCompressed] = useState(false);
   const [editingSectionName, setEditingSectionName] = useState(null);
   const [showAddSectionMenu, setShowAddSectionMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -203,6 +209,14 @@ function App() {
 
   const editingSectionId = useMemo(() => {
     return currentResume?.editingSectionId;
+  }, [currentResume]);
+
+  const isCompressed = useMemo(() => {
+    return currentResume?.isCompressed || false;
+  }, [currentResume]);
+
+  const compressionLevel = useMemo(() => {
+    return currentResume?.compressionLevel || 0;
   }, [currentResume]);
 
   // 监听需要滚动的模块并执行滚动
@@ -564,7 +578,9 @@ function App() {
           [newData.sections[1].id]: '工作经验',
           [newData.sections[2].id]: '教育背景',
           [newData.sections[3].id]: '技能'
-        }
+        },
+        isCompressed: false,
+        compressionLevel: 0
       };
       setCurrentResumeId(newId);
       return [...prev, newResume];
@@ -601,22 +617,124 @@ function App() {
 
   // 处理智能压缩
   const handleCompress = useCallback(() => {
-    // 使用requestAnimationFrame代替setTimeout，更高效的渲染时机
     requestAnimationFrame(() => {
       if (previewRef.current) {
-        const resumeHeight = previewRef.current.scrollHeight;
         const a4PageHeight = 1123; // A4 纸高度（像素）
         
-        if (resumeHeight > a4PageHeight) {
-          // 内容超出一页，执行压缩
-          setIsCompressed(true);
-        } else {
-          // 内容未超出一页，取消压缩
-          setIsCompressed(false);
-        }
+        const calculateOptimalCompression = () => {
+          let testLevel = 0;
+          let bestLevel = 0;
+          let bestHeight = Infinity;
+          
+          const testCompression = (level) => {
+            return new Promise((resolve) => {
+              setResumes(prev => prev.map(resume => {
+                if (resume.id === currentResumeId) {
+                  return {
+                    ...resume,
+                    isCompressed: level > 0,
+                    compressionLevel: level
+                  };
+                }
+                return resume;
+              }));
+              
+              setTimeout(() => {
+                if (previewRef.current) {
+                  resolve(previewRef.current.scrollHeight);
+                } else {
+                  resolve(Infinity);
+                }
+              }, 50);
+            });
+          };
+          
+          const findBestLevel = async () => {
+            for (let level = 0; level <= 3; level++) {
+              const height = await testCompression(level);
+              const heightDiff = Math.abs(height - a4PageHeight);
+              
+              if (height <= a4PageHeight && heightDiff < bestHeight) {
+                bestHeight = heightDiff;
+                bestLevel = level;
+              }
+              
+              if (height > a4PageHeight && level === 0) {
+                continue;
+              }
+            }
+            return bestLevel;
+          };
+          
+          return findBestLevel();
+        };
+        
+        const applyCompression = async () => {
+          const initialHeight = previewRef.current.scrollHeight;
+          
+          if (initialHeight <= a4PageHeight) {
+            setResumes(prev => prev.map(resume => {
+              if (resume.id === currentResumeId) {
+                return {
+                  ...resume,
+                  isCompressed: false,
+                  compressionLevel: 0
+                };
+              }
+              return resume;
+            }));
+            return;
+          }
+          
+          let testHeight = initialHeight;
+          let bestLevel = 0;
+          
+          const levels = [0, 1, 2, 3];
+          
+          for (const level of levels) {
+            setResumes(prev => prev.map(resume => {
+              if (resume.id === currentResumeId) {
+                return {
+                  ...resume,
+                  isCompressed: level > 0,
+                  compressionLevel: level
+                };
+              }
+              return resume;
+            }));
+            
+            await new Promise(resolve => setTimeout(resolve, 80));
+            
+            if (previewRef.current) {
+              testHeight = previewRef.current.scrollHeight;
+              
+              if (testHeight <= a4PageHeight) {
+                bestLevel = level;
+                break;
+              }
+              
+              if (level === 3) {
+                bestLevel = 3;
+              }
+            }
+          }
+          
+          setResumes(prev => prev.map(resume => {
+            if (resume.id === currentResumeId) {
+              return {
+                ...resume,
+                isCompressed: bestLevel > 0,
+                compressionLevel: bestLevel
+              };
+            }
+            return resume;
+          }));
+        };
+        
+        applyCompression();
       }
     });
-  }, []);
+  }, [currentResumeId]);
 
   // 处理PDF导出
   const handleExport = useCallback(() => {
@@ -866,7 +984,14 @@ function App() {
           {/* 右侧预览区 */}
           <aside className="preview">
             <h2>实时预览</h2>
-            <div className={`resume-preview ${isCompressed ? 'compressed' : ''}`} ref={previewRef}>
+            <div 
+              className={`resume-preview ${
+                compressionLevel === 1 ? 'compressed-level-1' : 
+                compressionLevel === 2 ? 'compressed-level-2' : 
+                compressionLevel === 3 ? 'compressed' : ''
+              }`} 
+              ref={previewRef}
+            >
               <div className="resume-header">
                 <h1>{resumeData.personal.name}</h1>
                 <p>{resumeData.personal.title}</p>
@@ -1038,6 +1163,21 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* 版权标识 */}
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          color: 'var(--text-secondary)',
+          fontSize: '0.875rem',
+          fontFamily: 'var(--font-sans)',
+          opacity: 0.7,
+          zIndex: 1
+        }}>
+          © 2026 pain
+        </div>
 
       </div>
     </DndProvider>

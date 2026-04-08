@@ -1164,21 +1164,6 @@ function App() {
           </div>
         )}
 
-        {/* 版权标识 */}
-        <div style={{
-          position: 'fixed',
-          bottom: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          color: 'var(--text-secondary)',
-          fontSize: '0.875rem',
-          fontFamily: 'var(--font-sans)',
-          opacity: 0.7,
-          zIndex: 1
-        }}>
-          © 2026 pain
-        </div>
-
       </div>
     </DndProvider>
   );

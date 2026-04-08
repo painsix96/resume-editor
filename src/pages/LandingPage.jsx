@@ -70,7 +70,7 @@ function LandingPage() {
     <div className="landing-page">
       <nav className="landing-nav">
         <div className="nav-container">
-          <Link to="/" className="nav-logo">
+          <a href="/" className="nav-logo">
             <svg width="40" height="40" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="4" y="2" width="24" height="28" rx="2" stroke="currentColor" strokeWidth="2"/>
               <line x1="8" y1="10" x2="24" y2="10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -78,7 +78,7 @@ function LandingPage() {
               <line x1="8" y1="22" x2="16" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
             <span>一页简历</span>
-          </Link>
+          </a>
           <div className="nav-links">
             <a href="#features">功能特点</a>
             <a href="#faq">常见问题</a>

@@ -5,7 +5,7 @@ import EditorPage from './pages/EditorPage';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/resume-editor">
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/editor" element={<EditorPage />} />

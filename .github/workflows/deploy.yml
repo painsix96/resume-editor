@@ -33,9 +33,6 @@ jobs:
       - name: Build
         run: GITHUB_PAGES=true npm run build
 
-      - name: Create 404.html
-        run: cp dist/index.html dist/404.html
-
       - name: Setup Pages
         uses: actions/configure-pages@v4
 

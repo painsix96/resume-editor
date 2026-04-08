@@ -736,7 +736,7 @@ function EditorPage() {
     <DndProvider backend={HTML5Backend}>
       <div className="container">
         <header className="header">
-          <Link to="/" className="header-logo">
+          <Link to="/resume-editor/" className="header-logo">
             <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="4" y="2" width="24" height="28" rx="2" stroke="currentColor" strokeWidth="2"/>
               <line x1="8" y1="10" x2="24" y2="10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>

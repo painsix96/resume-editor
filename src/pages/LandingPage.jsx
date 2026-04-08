@@ -106,7 +106,7 @@ function LandingPage() {
           </div>
           <div className="hero-preview">
             <div className="preview-window">
-              <img src="/截屏 1.png" alt="简历编辑器预览" className="preview-image" />
+              <img src="/resume-editor/截屏 1.png" alt="简历编辑器预览" className="preview-image" />
             </div>
           </div>
         </div>

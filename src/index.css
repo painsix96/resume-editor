@@ -302,6 +302,69 @@ code {
   font-family: var(--font-sans);
 }
 
+.custom-select-container {
+  position: relative;
+  min-width: 160px;
+}
+
+.custom-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow);
+  font-family: var(--font-sans);
+  min-height: 38px;
+}
+
+.custom-select:hover {
+  border-color: var(--primary-color);
+  background-color: var(--secondary-color);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+.custom-select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background-color: var(--modal-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-hover);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.custom-select-option {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-family: var(--font-sans);
+  color: var(--text-color);
+}
+
+.custom-select-option:hover {
+  background-color: var(--secondary-color);
+}
+
+.custom-select-option.selected {
+  background-color: rgba(74, 144, 226, 0.1);
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
 .header .actions {
   display: flex;
   gap: 0.75rem;
@@ -1102,6 +1165,16 @@ code {
     font-size: 0.875rem;
   }
   
+  .custom-select-container {
+    min-width: 120px;
+  }
+  
+  .custom-select {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.875rem;
+    min-height: 34px;
+  }
+  
   .header .actions {
     width: 100%;
     justify-content: center;
@@ -1189,6 +1262,21 @@ code {
     width: auto;
     min-width: 100px;
     padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  
+  .custom-select-container {
+    min-width: 100px;
+  }
+  
+  .custom-select {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    min-height: 32px;
+  }
+  
+  .custom-select-option {
+    padding: 0.5rem 0.7rem;
     font-size: 0.8rem;
   }
   

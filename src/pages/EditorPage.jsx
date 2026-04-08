@@ -135,6 +135,10 @@ function EditorPage() {
     const savedDarkMode = localStorage.getItem('resumeEditorDarkMode');
     return savedDarkMode === 'true';
   });
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameInput, setRenameInput] = useState('');
+  const [showResumeSelect, setShowResumeSelect] = useState(false);
+  const resumeSelectRef = useRef(null);
   const previewRef = useRef(null);
   const editorRef = useRef(null);
   const sectionRefs = useRef({});
@@ -153,6 +157,19 @@ function EditorPage() {
     
     return () => clearTimeout(timer);
   }, [resumes]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (resumeSelectRef.current && !resumeSelectRef.current.contains(event.target)) {
+        setShowResumeSelect(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('resumeEditorCurrentResumeId', currentResumeId);
@@ -577,6 +594,22 @@ function EditorPage() {
     }));
   }, []);
 
+  const handleOpenRenameModal = useCallback(() => {
+    setRenameInput(currentResume?.name || '');
+    setShowRenameModal(true);
+  }, [currentResume?.name]);
+
+  const handleConfirmRename = useCallback(() => {
+    if (renameInput.trim()) {
+      handleRenameResume(currentResumeId, renameInput.trim());
+    }
+    setShowRenameModal(false);
+  }, [renameInput, currentResumeId, handleRenameResume]);
+
+  const handleCancelRename = useCallback(() => {
+    setShowRenameModal(false);
+  }, []);
+
   const handleCompress = useCallback(() => {
     requestAnimationFrame(() => {
       if (previewRef.current) {
@@ -736,7 +769,7 @@ function EditorPage() {
     <DndProvider backend={HTML5Backend}>
       <div className="container">
         <header className="header">
-          <Link to="/resume-editor/" className="header-logo">
+          <Link to="/" className="header-logo">
             <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="4" y="2" width="24" height="28" rx="2" stroke="currentColor" strokeWidth="2"/>
               <line x1="8" y1="10" x2="24" y2="10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -746,17 +779,31 @@ function EditorPage() {
             <span>一页简历</span>
           </Link>
           <div className="resume-management">
-            <select 
-              value={currentResumeId} 
-              onChange={(e) => setCurrentResumeId(e.target.value)}
-              className="resume-select"
-            >
-              {resumes.map(resume => (
-                <option key={resume.id} value={resume.id}>
-                  {resume.name}
-                </option>
-              ))}
-            </select>
+            <div className="custom-select-container" ref={resumeSelectRef}>
+              <div 
+                className="custom-select"
+                onClick={() => setShowResumeSelect(!showResumeSelect)}
+              >
+                <span>{currentResume?.name || '选择简历'}</span>
+                <FiChevronDown size={16} style={{ transition: 'transform 0.3s ease' }} />
+              </div>
+              {showResumeSelect && (
+                <div className="custom-select-dropdown">
+                  {resumes.map(resume => (
+                    <div 
+                      key={resume.id}
+                      className={`custom-select-option ${currentResumeId === resume.id ? 'selected' : ''}`}
+                      onClick={() => {
+                        setCurrentResumeId(resume.id);
+                        setShowResumeSelect(false);
+                      }}
+                    >
+                      {resume.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <button className="btn btn-secondary" onClick={handleCreateResume}>
               新建简历
             </button>
@@ -770,10 +817,7 @@ function EditorPage() {
             }}>
               删除简历
             </button>
-            <button className="btn btn-secondary" onClick={() => {
-              const newName = prompt('请输入新的简历名称:', currentResume?.name);
-              if (newName) handleRenameResume(currentResumeId, newName);
-            }}>
+            <button className="btn btn-secondary" onClick={handleOpenRenameModal}>
               重命名
             </button>
           </div>
@@ -1069,6 +1113,96 @@ function EditorPage() {
                   onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--error-color)'}
                 >
                   确认删除
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showRenameModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
+          }}>
+            <div className="rename-modal" style={{
+              backgroundColor: 'var(--modal-bg)',
+              padding: '24px',
+              borderRadius: 'var(--border-radius)',
+              boxShadow: 'var(--shadow-hover)',
+              maxWidth: '400px',
+              width: '100%',
+              border: '1px solid var(--border-color)'
+            }}>
+              <h3 style={{ color: 'var(--text-color)', marginBottom: '16px', fontFamily: 'var(--font-sans)', fontWeight: '600' }}>重命名简历</h3>
+              <div style={{ marginBottom: '24px' }}>
+                <input
+                  type="text"
+                  value={renameInput}
+                  onChange={(e) => setRenameInput(e.target.value)}
+                  placeholder="请输入新的简历名称"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--border-radius)',
+                    fontSize: '0.95rem',
+                    fontFamily: 'var(--font-sans)',
+                    backgroundColor: 'var(--input-bg)',
+                    color: 'var(--text-color)'
+                  }}
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button
+                  onClick={handleCancelRename}
+                  style={{
+                    backgroundColor: 'var(--input-bg)',
+                    color: 'var(--text-color)',
+                    border: '1px solid var(--border-color)',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--border-radius)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'var(--transition)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = isDarkMode ? '#35354E' : '#E8EDF3';
+                    e.target.style.borderColor = 'var(--primary-color)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'var(--input-bg)';
+                    e.target.style.borderColor = 'var(--border-color)';
+                  }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleConfirmRename}
+                  style={{
+                    backgroundColor: 'var(--primary-color)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--border-radius)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'var(--transition)'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--primary-hover)'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--primary-color)'}
+                >
+                  确认
                 </button>
               </div>
             </div>

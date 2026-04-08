@@ -1,3 +1,5 @@
+@import './pages/LandingPage.css';
+
 :root {
   --primary-color: #4A90E2;
   --primary-hover: #3A80D2;
@@ -192,6 +194,26 @@ code {
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.5px;
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--primary-color);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.header-logo:hover {
+  opacity: 0.8;
+}
+
+.header-logo svg {
+  color: var(--primary-color);
 }
 
 .header-right {

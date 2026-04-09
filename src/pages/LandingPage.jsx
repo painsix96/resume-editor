@@ -106,7 +106,17 @@ function LandingPage() {
           </div>
           <div className="hero-preview">
             <div className="preview-window">
-              <img src="/resume-editor/截屏 1.png" alt="简历编辑器预览" className="preview-image" />
+              <img 
+                src="/resume-editor/截屏 1.png" 
+                alt="简历编辑器预览" 
+                className="preview-image"
+                loading="lazy"
+                onLoad={(e) => e.target.style.opacity = '1'}
+                style={{ opacity: '0', transition: 'opacity 0.5s ease-in-out' }}
+              />
+              <div className="preview-placeholder">
+                <span>简历编辑器预览</span>
+              </div>
             </div>
           </div>
         </div>

@@ -138,6 +138,8 @@ function EditorPage() {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameInput, setRenameInput] = useState('');
   const [showResumeSelect, setShowResumeSelect] = useState(false);
+  const [showFilenameModal, setShowFilenameModal] = useState(false);
+  const [filenameInput, setFilenameInput] = useState('');
   const resumeSelectRef = useRef(null);
   const previewRef = useRef(null);
   const editorRef = useRef(null);
@@ -613,14 +615,9 @@ function EditorPage() {
   const handleCompress = useCallback(() => {
     requestAnimationFrame(() => {
       if (previewRef.current) {
-        // 考虑PDF导出的实际高度，A4页面高度转换为像素（考虑边距和导出时的样式差异）
-        const a4PageHeight = 950; // 进一步调整为更保守的高度，确保PDF导出时不会超出
+        const a4PageHeight = 1050;
         
         const applyCompression = async () => {
-          // 先保存当前状态
-          const currentState = { ...currentResume };
-          
-          // 计算初始高度
           const initialHeight = previewRef.current.scrollHeight;
           
           if (initialHeight <= a4PageHeight) {
@@ -637,41 +634,33 @@ function EditorPage() {
             return;
           }
           
-          let bestLevel = 3; // 默认为最高压缩级别
-          let bestHeight = initialHeight;
-          
-          // 从低到高尝试不同的压缩级别
-          const levels = [1, 2, 3];
+          let bestLevel = 3;
+          const levels = [0, 1, 2, 3];
           
           for (const level of levels) {
-            // 应用压缩级别
             setResumes(prev => prev.map(resume => {
               if (resume.id === currentResumeId) {
                 return {
                   ...resume,
-                  isCompressed: true,
+                  isCompressed: level > 0,
                   compressionLevel: level
                 };
               }
               return resume;
             }));
             
-            // 等待DOM更新
-            await new Promise(resolve => setTimeout(resolve, 150));
+            await new Promise(resolve => setTimeout(resolve, 100));
             
             if (previewRef.current) {
-              const testHeight = previewRef.current.scrollHeight;
+              const currentHeight = previewRef.current.scrollHeight;
               
-              if (testHeight <= a4PageHeight) {
-                // 找到合适的压缩级别
+              if (currentHeight <= a4PageHeight) {
                 bestLevel = level;
-                bestHeight = testHeight;
                 break;
               }
             }
           }
           
-          // 应用最佳压缩级别
           setResumes(prev => prev.map(resume => {
             if (resume.id === currentResumeId) {
               return {
@@ -687,24 +676,65 @@ function EditorPage() {
         applyCompression();
       }
     });
-  }, [currentResumeId, currentResume]);
+  }, [currentResumeId]);
 
   const handleExport = useCallback(() => {
-    if (previewRef.current) {
-      // 确保导出时使用与预览相同的压缩状态
-      const currentHeight = previewRef.current.scrollHeight;
-      
+    setFilenameInput(`${resumeData.personal.name}_简历.pdf`);
+    setShowFilenameModal(true);
+  }, [resumeData.personal.name]);
+
+  const handleConfirmExport = useCallback(() => {
+    if (previewRef.current && filenameInput.trim()) {
       const opt = {
-        margin: 5,
-        filename: `${resumeData.personal.name}_简历.pdf`,
+        margin: 0,
+        filename: filenameInput.trim(),
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, logging: false, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        html2canvas: { 
+          scale: 2, 
+          logging: false, 
+          useCORS: true,
+          letterRendering: true,
+          windowWidth: 794,
+          windowHeight: 1123
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait',
+          compress: true
+        },
+        pagebreak: { mode: 'avoid-all' }
       };
 
-      html2pdf().set(opt).from(previewRef.current).save();
+      const element = previewRef.current;
+      const originalBorder = element.style.border;
+      const originalBoxShadow = element.style.boxShadow;
+      const originalBorderRadius = element.style.borderRadius;
+      
+      element.style.maxHeight = 'none';
+      element.style.overflow = 'visible';
+      element.style.border = 'none';
+      element.style.boxShadow = 'none';
+      element.style.borderRadius = '0';
+
+      html2pdf().from(element).set(opt).save().then(() => {
+        element.style.border = originalBorder;
+        element.style.boxShadow = originalBoxShadow;
+        element.style.borderRadius = originalBorderRadius;
+        if (isCompressed) {
+          element.style.maxHeight = 'none';
+          element.style.overflow = 'auto';
+        }
+        setShowFilenameModal(false);
+      });
+    } else {
+      setShowFilenameModal(false);
     }
-  }, [resumeData.personal.name]);
+  }, [filenameInput, isCompressed]);
+
+  const handleCancelExport = useCallback(() => {
+    setShowFilenameModal(false);
+  }, []);
 
   const handleAddSection = useCallback((type) => {
     const newId = generateId();
@@ -1213,6 +1243,96 @@ function EditorPage() {
                   onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--primary-color)'}
                 >
                   确认
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showFilenameModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
+          }}>
+            <div className="filename-modal" style={{
+              backgroundColor: 'var(--modal-bg)',
+              padding: '24px',
+              borderRadius: 'var(--border-radius)',
+              boxShadow: 'var(--shadow-hover)',
+              maxWidth: '400px',
+              width: '100%',
+              border: '1px solid var(--border-color)'
+            }}>
+              <h3 style={{ color: 'var(--text-color)', marginBottom: '16px', fontFamily: 'var(--font-sans)', fontWeight: '600' }}>导出PDF</h3>
+              <div style={{ marginBottom: '24px' }}>
+                <input
+                  type="text"
+                  value={filenameInput}
+                  onChange={(e) => setFilenameInput(e.target.value)}
+                  placeholder="请输入文件名"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--border-radius)',
+                    fontSize: '0.95rem',
+                    fontFamily: 'var(--font-sans)',
+                    backgroundColor: 'var(--input-bg)',
+                    color: 'var(--text-color)'
+                  }}
+                  autoFocus
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button
+                  onClick={handleCancelExport}
+                  style={{
+                    backgroundColor: 'var(--input-bg)',
+                    color: 'var(--text-color)',
+                    border: '1px solid var(--border-color)',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--border-radius)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'var(--transition)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = isDarkMode ? '#35354E' : '#E8EDF3';
+                    e.target.style.borderColor = 'var(--primary-color)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'var(--input-bg)';
+                    e.target.style.borderColor = 'var(--border-color)';
+                  }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleConfirmExport}
+                  style={{
+                    backgroundColor: 'var(--primary-color)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--border-radius)',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'var(--transition)'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--primary-hover)'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'var(--primary-color)'}
+                >
+                  导出
                 </button>
               </div>
             </div>

@@ -114,7 +114,9 @@ function LandingPage() {
                 onLoad={(e) => e.target.style.opacity = '1'}
                 style={{ opacity: '0', transition: 'opacity 0.5s ease-in-out' }}
               />
-              <div className="preview-placeholder"></div>
+              <div className="preview-placeholder">
+                <span>简历编辑器预览</span>
+              </div>
             </div>
           </div>
         </div>

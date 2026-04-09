@@ -765,22 +765,6 @@ code {
   background-color: #FFFFFF;
 }
 
-/* 导出PDF时移除边框和内边距 */
-@media print {
-  .resume-preview {
-    border: none !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-  }
-  
-  .preview {
-    border: none !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-  }
-}
-
 .resume-header {
   text-align: center;
   margin-bottom: 2rem;
@@ -967,15 +951,210 @@ code {
   line-height: 1.15;
 }
 
-/* 优化PDF导出时的页面高度 */
+/* 打印样式 - 强制单页A4 */
 @media print {
+  @page {
+    size: A4;
+    margin: 1cm;
+  }
+
+  * {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+  }
+
+  .container,
+  .main,
+  .editor,
+  .header,
+  .actions,
+  .btn,
+  .preview > h2 {
+    display: none !important;
+  }
+
+  .preview {
+    display: block !important;
+    flex: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+  }
+
   .resume-preview {
-    max-height: 270mm;
-    overflow: hidden;
+    max-height: 250mm !important;
+    height: 250mm !important;
+    overflow: hidden !important;
+    padding: 1.5cm !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
   }
+
   .resume-preview.compressed {
-    max-height: 280mm;
+    max-height: 260mm !important;
+    height: 260mm !important;
   }
+
+  .resume-header,
+  .resume-section {
+    page-break-inside: avoid !important;
+  }
+}
+
+/* 压缩级别样式 - 更细致的调整 */
+.resume-preview.compressed {
+  font-size: 0.82rem;
+  line-height: 1.15;
+  padding: 1.2rem !important;
+}
+
+.resume-preview.compressed .resume-header {
+  margin-bottom: 0.6rem;
+}
+
+.resume-preview.compressed .resume-header h1 {
+  font-size: 1.25rem;
+  margin-bottom: 0.15rem;
+  line-height: 1.05;
+}
+
+.resume-preview.compressed .resume-header p {
+  font-size: 0.78rem;
+  margin-bottom: 0.1rem;
+  line-height: 1.05;
+}
+
+.resume-preview.compressed .resume-section {
+  margin-bottom: 0.6rem;
+}
+
+.resume-preview.compressed .resume-section h2 {
+  font-size: 0.9rem;
+  margin-bottom: 0.2rem;
+  padding-bottom: 0.1rem;
+  line-height: 1.05;
+}
+
+.resume-preview.compressed .resume-section p {
+  font-size: 0.78rem;
+  margin-bottom: 0.1rem;
+  line-height: 1.05;
+}
+
+.resume-preview.compressed .resume-section div {
+  margin-bottom: 0.4rem;
+}
+
+.resume-preview.compressed .resume-section div span {
+  font-size: 0.78rem;
+  line-height: 1.05;
+}
+
+.resume-preview.compressed-level-1 {
+  font-size: 0.88rem;
+  line-height: 1.2;
+  padding: 1.8rem !important;
+}
+
+.resume-preview.compressed-level-1 .resume-header {
+  margin-bottom: 1rem;
+}
+
+.resume-preview.compressed-level-1 .resume-header h1 {
+  font-size: 1.4rem;
+  margin-bottom: 0.3rem;
+  line-height: 1.1;
+}
+
+.resume-preview.compressed-level-1 .resume-header p {
+  font-size: 0.82rem;
+  margin-bottom: 0.15rem;
+  line-height: 1.1;
+}
+
+.resume-preview.compressed-level-1 .resume-section {
+  margin-bottom: 1rem;
+}
+
+.resume-preview.compressed-level-1 .resume-section h2 {
+  font-size: 0.98rem;
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.15rem;
+  line-height: 1.1;
+}
+
+.resume-preview.compressed-level-1 .resume-section p {
+  font-size: 0.82rem;
+  margin-bottom: 0.15rem;
+  line-height: 1.1;
+}
+
+.resume-preview.compressed-level-1 .resume-section div {
+  margin-bottom: 0.55rem;
+}
+
+.resume-preview.compressed-level-1 .resume-section div span {
+  font-size: 0.82rem;
+  line-height: 1.1;
+}
+
+.resume-preview.compressed-level-2 {
+  font-size: 0.85rem;
+  line-height: 1.18;
+  padding: 1.5rem !important;
+}
+
+.resume-preview.compressed-level-2 .resume-header {
+  margin-bottom: 0.8rem;
+}
+
+.resume-preview.compressed-level-2 .resume-header h1 {
+  font-size: 1.32rem;
+  margin-bottom: 0.22rem;
+  line-height: 1.08;
+}
+
+.resume-preview.compressed-level-2 .resume-header p {
+  font-size: 0.8rem;
+  margin-bottom: 0.12rem;
+  line-height: 1.08;
+}
+
+.resume-preview.compressed-level-2 .resume-section {
+  margin-bottom: 0.8rem;
+}
+
+.resume-preview.compressed-level-2 .resume-section h2 {
+  font-size: 0.94rem;
+  margin-bottom: 0.25rem;
+  padding-bottom: 0.12rem;
+  line-height: 1.08;
+}
+
+.resume-preview.compressed-level-2 .resume-section p {
+  font-size: 0.8rem;
+  margin-bottom: 0.12rem;
+  line-height: 1.08;
+}
+
+.resume-preview.compressed-level-2 .resume-section div {
+  margin-bottom: 0.48rem;
+}
+
+.resume-preview.compressed-level-2 .resume-section div span {
+  font-size: 0.8rem;
+  line-height: 1.08;
 }
 
 .footer {

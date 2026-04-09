@@ -956,9 +956,27 @@ code {
   .resume-preview {
     max-height: 270mm;
     overflow: hidden;
+    border: none !important;
+    box-shadow: none !important;
   }
   .resume-preview.compressed {
     max-height: 280mm;
+  }
+  
+  /* 移除整个页面的边距 */
+  @page {
+    margin: 0;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  
+  .preview {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
   }
 }
 

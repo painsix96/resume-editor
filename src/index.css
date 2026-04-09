@@ -765,6 +765,22 @@ code {
   background-color: #FFFFFF;
 }
 
+/* 导出PDF时移除边框和内边距 */
+@media print {
+  .resume-preview {
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  
+  .preview {
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
 .resume-header {
   text-align: center;
   margin-bottom: 2rem;
@@ -954,13 +970,11 @@ code {
 /* 优化PDF导出时的页面高度 */
 @media print {
   .resume-preview {
-    max-height: 1050px;
+    max-height: 270mm;
     overflow: hidden;
   }
-  .resume-preview.compressed,
-  .resume-preview.compressed-level-1,
-  .resume-preview.compressed-level-2 {
-    max-height: 1050px;
+  .resume-preview.compressed {
+    max-height: 280mm;
   }
 }
 

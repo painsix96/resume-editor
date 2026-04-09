@@ -613,10 +613,14 @@ function EditorPage() {
   const handleCompress = useCallback(() => {
     requestAnimationFrame(() => {
       if (previewRef.current) {
-        // 考虑PDF导出的实际高度，A4页面高度转换为像素（考虑边距）
-        const a4PageHeight = 1050; // 调整为更保守的高度，确保PDF导出时不会超出
+        // 考虑PDF导出的实际高度，A4页面高度转换为像素（考虑边距和导出时的样式差异）
+        const a4PageHeight = 950; // 进一步调整为更保守的高度，确保PDF导出时不会超出
         
         const applyCompression = async () => {
+          // 先保存当前状态
+          const currentState = { ...currentResume };
+          
+          // 计算初始高度
           const initialHeight = previewRef.current.scrollHeight;
           
           if (initialHeight <= a4PageHeight) {
@@ -633,39 +637,41 @@ function EditorPage() {
             return;
           }
           
-          let testHeight = initialHeight;
-          let bestLevel = 0;
+          let bestLevel = 3; // 默认为最高压缩级别
+          let bestHeight = initialHeight;
           
-          const levels = [0, 1, 2, 3];
+          // 从低到高尝试不同的压缩级别
+          const levels = [1, 2, 3];
           
           for (const level of levels) {
+            // 应用压缩级别
             setResumes(prev => prev.map(resume => {
               if (resume.id === currentResumeId) {
                 return {
                   ...resume,
-                  isCompressed: level > 0,
+                  isCompressed: true,
                   compressionLevel: level
                 };
               }
               return resume;
             }));
             
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // 等待DOM更新
+            await new Promise(resolve => setTimeout(resolve, 150));
             
             if (previewRef.current) {
-              testHeight = previewRef.current.scrollHeight;
+              const testHeight = previewRef.current.scrollHeight;
               
               if (testHeight <= a4PageHeight) {
+                // 找到合适的压缩级别
                 bestLevel = level;
+                bestHeight = testHeight;
                 break;
-              }
-              
-              if (level === 3) {
-                bestLevel = 3;
               }
             }
           }
           
+          // 应用最佳压缩级别
           setResumes(prev => prev.map(resume => {
             if (resume.id === currentResumeId) {
               return {
@@ -681,7 +687,7 @@ function EditorPage() {
         applyCompression();
       }
     });
-  }, [currentResumeId]);
+  }, [currentResumeId, currentResume]);
 
   const handleExport = useCallback(() => {
     if (previewRef.current) {

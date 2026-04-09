@@ -613,7 +613,7 @@ function EditorPage() {
   const handleCompress = useCallback(() => {
     requestAnimationFrame(() => {
       if (previewRef.current) {
-        const a4PageHeight = 1123;
+        const a4PageHeight = 1050;
         
         const applyCompression = async () => {
           const initialHeight = previewRef.current.scrollHeight;
@@ -685,16 +685,18 @@ function EditorPage() {
   const handleExport = useCallback(() => {
     if (previewRef.current) {
       const opt = {
-        margin: 5,
+        margin: 10,
         filename: `${resumeData.personal.name}_简历.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, logging: false, useCORS: true },
+        html2canvas: { scale: 2, logging: false, useCORS: true, 
+          height: isCompressed ? 1050 : undefined
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
       html2pdf().set(opt).from(previewRef.current).save();
     }
-  }, [resumeData.personal.name]);
+  }, [resumeData.personal.name, isCompressed]);
 
   const handleAddSection = useCallback((type) => {
     const newId = generateId();

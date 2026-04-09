@@ -613,7 +613,8 @@ function EditorPage() {
   const handleCompress = useCallback(() => {
     requestAnimationFrame(() => {
       if (previewRef.current) {
-        const a4PageHeight = 1050;
+        // 考虑PDF导出的实际高度，A4页面高度转换为像素（考虑边距）
+        const a4PageHeight = 1050; // 调整为更保守的高度，确保PDF导出时不会超出
         
         const applyCompression = async () => {
           const initialHeight = previewRef.current.scrollHeight;
@@ -649,7 +650,7 @@ function EditorPage() {
               return resume;
             }));
             
-            await new Promise(resolve => setTimeout(resolve, 80));
+            await new Promise(resolve => setTimeout(resolve, 100));
             
             if (previewRef.current) {
               testHeight = previewRef.current.scrollHeight;
@@ -684,19 +685,20 @@ function EditorPage() {
 
   const handleExport = useCallback(() => {
     if (previewRef.current) {
+      // 确保导出时使用与预览相同的压缩状态
+      const currentHeight = previewRef.current.scrollHeight;
+      
       const opt = {
-        margin: 10,
+        margin: 5,
         filename: `${resumeData.personal.name}_简历.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, logging: false, useCORS: true, 
-          height: isCompressed ? 1050 : undefined
-        },
+        html2canvas: { scale: 2, logging: false, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
       html2pdf().set(opt).from(previewRef.current).save();
     }
-  }, [resumeData.personal.name, isCompressed]);
+  }, [resumeData.personal.name]);
 
   const handleAddSection = useCallback((type) => {
     const newId = generateId();

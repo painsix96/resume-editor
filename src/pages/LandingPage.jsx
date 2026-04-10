@@ -83,8 +83,24 @@ function LandingPage() {
             <span>一页简历</span>
           </a>
           <div className="nav-links">
-            <a href="#features">功能特点</a>
-            <a href="#faq">常见问题</a>
+            <a 
+              href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              功能特点
+            </a>
+            <a 
+              href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              常见问题
+            </a>
             <Link to="/editor" className="nav-cta">开始使用</Link>
           </div>
         </div>
@@ -103,7 +119,14 @@ function LandingPage() {
             <Link to="/editor" className="btn-primary-large">
               立即开始
             </Link>
-            <a href="#features" className="btn-secondary-large">
+            <a 
+              href="#" 
+              className="btn-secondary-large"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
               了解更多
             </a>
           </div>
